@@ -4,66 +4,29 @@ set -e
 STATE="${OPENCLAW_STATE_DIR:-/data/.openclaw}"
 WS="${OPENCLAW_WORKSPACE_DIR:-/data/workspace}"
 
-# Seed config if missing or empty
+# Fix volume permissions
+mkdir -p "$STATE/agents/main/agent" "$STATE/agents/main/sessions" "$WS/memory" "$STATE/canvas" 2>/dev/null || true
+
+# Seed config if missing
 if [ ! -s "$STATE/openclaw.json" ]; then
-  mkdir -p "$STATE/agents/main/agent"
-  cp /seed/openclaw.json "$STATE/openclaw.json"
-  cp /seed/auth-profiles.json "$STATE/agents/main/agent/auth-profiles.json"
-  echo "[entrypoint] Seeded config from /seed"
-else
-  echo "[entrypoint] Config already exists at $STATE/openclaw.json"
+  cp /seed/openclaw.json "$STATE/openclaw.json" 2>/dev/null || true
+  cp /seed/auth-profiles.json "$STATE/agents/main/agent/auth-profiles.json" 2>/dev/null || true
+  echo "[seed] Config seeded"
 fi
 
-# Ensure telegram is enabled using node (since python3 may not be available)
-node -e "
-const fs = require('fs');
-const p = '$STATE/openclaw.json';
-try {
-  const c = JSON.parse(fs.readFileSync(p, 'utf8'));
-  let mod = false;
-  if (!c.plugins) c.plugins = {};
-  if (!c.plugins.entries) c.plugins.entries = {};
-  if (!c.plugins.entries.telegram) c.plugins.entries.telegram = {};
-  if (!c.plugins.entries.telegram.enabled) { c.plugins.entries.telegram.enabled = true; mod = true; }
-  if (!c.channels) c.channels = {};
-  if (!c.channels.telegram) c.channels.telegram = {};
-  if (!c.channels.telegram.enabled) { c.channels.telegram.enabled = true; mod = true; }
-  if (mod) {
-    fs.writeFileSync(p, JSON.stringify(c, null, 2));
-    console.log('[entrypoint] Patched telegram enabled=true');
-  } else {
-    console.log('[entrypoint] Telegram already enabled');
-  }
-} catch(e) {
-  console.error('[entrypoint] Patch failed:', e.message);
-  const fs2 = require('fs');
-  fs2.copyFileSync('/seed/openclaw.json', p);
-  console.log('[entrypoint] Replaced with seed config');
-}
-" 2>&1 || true
+# Patch telegram enabled
+python3 -c "
+import json
+p = '$STATE/openclaw.json'
+try:
+    with open(p) as f: c = json.load(f)
+    mod = False
+    pe = c.setdefault('plugins',{}).setdefault('entries',{}).setdefault('telegram',{})
+    if not pe.get('enabled'): pe['enabled'] = True; mod = True
+    if mod:
+        with open(p,'w') as f: json.dump(c, f, indent=2)
+        print('[seed] Patched telegram=true')
+except: pass
+" 2>/dev/null || true
 
-# Seed workspace
-if [ ! -f "$WS/SOUL.md" ]; then
-  mkdir -p "$WS/memory"
-  cp -r /seed/workspace/* "$WS/" 2>/dev/null || true
-  echo "[entrypoint] Seeded workspace"
-fi
-
-echo "[entrypoint] Starting OpenClaw..."
-# Execute the original CMD if passed, otherwise try to find openclaw
-if [ $# -gt 0 ]; then
-  exec "$@"
-else
-  # Try common openclaw startup commands
-  if command -v openclaw >/dev/null 2>&1; then
-    exec openclaw gateway start --foreground
-  elif [ -f /app/dist/cli.js ]; then
-    exec node /app/dist/cli.js gateway start --foreground
-  else
-    echo "[entrypoint] ERROR: Cannot find openclaw binary"
-    # List what's available
-    ls -la /app/ 2>/dev/null || true
-    which node 2>/dev/null || true
-    exit 1
-  fi
-fi
+exec "$@"
