@@ -1,0 +1,18 @@
+{
+  "profiles": {
+    "anthropic": {
+      "id": "anthropic",
+      "provider": "anthropic",
+      "label": "Anthropic",
+      "auth": {
+        "apiKey": "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"
+      },
+      "models": [
+        "anthropic/claude-sonnet-4-20250514",
+        "anthropic/claude-opus-4-6"
+      ],
+      "defaultModel": "anthropic/claude-sonnet-4-20250514"
+    }
+  },
+  "default": "anthropic"
+}
