@@ -1,8 +1,11 @@
 FROM ghcr.io/openclaw/openclaw:latest
 
-# Store seed files
+USER root
+
 COPY config/openclaw.json /seed/openclaw.json
 COPY config/auth-profiles.json /seed/auth-profiles.json
-COPY --chmod=755 entrypoint.sh /seed/entrypoint.sh
+COPY workspace/ /seed/workspace/
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-ENTRYPOINT ["/seed/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]

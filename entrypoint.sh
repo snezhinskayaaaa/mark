@@ -50,5 +50,20 @@ if [ ! -f "$WS/SOUL.md" ]; then
 fi
 
 echo "[entrypoint] Starting OpenClaw..."
-# Execute the original CMD (passed as arguments)
-exec "$@"
+# Execute the original CMD if passed, otherwise try to find openclaw
+if [ $# -gt 0 ]; then
+  exec "$@"
+else
+  # Try common openclaw startup commands
+  if command -v openclaw >/dev/null 2>&1; then
+    exec openclaw gateway start --foreground
+  elif [ -f /app/dist/cli.js ]; then
+    exec node /app/dist/cli.js gateway start --foreground
+  else
+    echo "[entrypoint] ERROR: Cannot find openclaw binary"
+    # List what's available
+    ls -la /app/ 2>/dev/null || true
+    which node 2>/dev/null || true
+    exit 1
+  fi
+fi
